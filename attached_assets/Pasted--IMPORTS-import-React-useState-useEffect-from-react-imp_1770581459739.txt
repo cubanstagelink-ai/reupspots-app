@@ -1,0 +1,326 @@
+// ---------- IMPORTS ----------
+import React, { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+} from "firebase/firestore";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+
+// ---------- FIREBASE CONFIG ----------
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_KEY",
+  authDomain: "reupspots.firebaseapp.com",
+  projectId: "reupspots",
+  storageBucket: "reupspots.appspot.com",
+  messagingSenderId: "YOUR_MSG_ID",
+  appId: "YOUR_APP_ID",
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ---------- ADMIN EMAILS ----------
+const adminEmails = ["support@reupspots.com"];
+
+// ---------- SAMPLE DATA ----------
+const samplePosts = [
+  {
+    title: "Live DJ Performance",
+    category: "Music",
+    pay: 150,
+    venue: "The Underground Club",
+    address: "123 Main St, Chicago, IL",
+    date: "2026-02-07",
+    promoter: "DJ Alex",
+    verified: true,
+    media: ["https://via.placeholder.com/150"],
+    profileSlug: "dj-alex",
+    recurring: false,
+  },
+  {
+    title: "Grocery Delivery",
+    category: "General Labor & Everyday Work",
+    pay: 50,
+    venue: "Customer Address",
+    address: "456 Park Ave, Naperville, IL",
+    date: "2026-02-08",
+    promoter: "Jane Doe",
+    verified: true,
+    media: ["https://via.placeholder.com/150"],
+    profileSlug: "jane-doe",
+    recurring: true,
+  },
+];
+
+// ---------- WORKERS ----------
+const workers = [
+  {
+    name: "John Doe",
+    category: "Musician",
+    verified: true,
+    media: ["https://via.placeholder.com/150", "https://via.placeholder.com/150"],
+    profileSlug: "john-doe",
+  },
+  {
+    name: "Jane Smith",
+    category: "Delivery",
+    verified: true,
+    media: ["https://via.placeholder.com/150"],
+    profileSlug: "jane-smith",
+  },
+];
+
+// ---------- COLOR THEMES ----------
+const colorPalettes = [
+  { primary: "#FF6EC7", secondary: "#6EE2FF", bg: "#FFF0F5", text: "#333" },
+  { primary: "#A25FFF", secondary: "#FF8C6E", bg: "#F9F0FF", text: "#222" },
+  { primary: "#00D1B2", secondary: "#FFE066", bg: "#F0FFF5", text: "#111" },
+  { primary: "#FFB347", secondary: "#FFCC70", bg: "#FFF8F0", text: "#333" },
+  { primary: "#7F00FF", secondary: "#E100FF", bg: "#F4E0FF", text: "#222" },
+  // ... add more for 20+ total
+];
+const getRandomPalette = () => colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+
+// ---------- UTILITY FUNCTIONS ----------
+const copyProfileLink = (slug) => {
+  const profileURL = `${window.location.origin}/profile/${slug}`;
+  navigator.clipboard.writeText(profileURL);
+  alert("Profile link copied!");
+};
+
+// ---------- PAYMENT BUTTON ----------
+function PaymentButton({ amount, description, onRelease }) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const handlePayment = async () => {
+    if (!stripe || !elements) return;
+    alert(`Payment of $${amount} reserved in escrow. Release when job complete.`);
+    onRelease && onRelease();
+  };
+
+  return (
+    <button
+      onClick={handlePayment}
+      className="mt-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+    >
+      Pay & Reserve
+    </button>
+  );
+}
+
+// ---------- ANIMATED LOADING / INTRO ----------
+function Intro({ onFinish }) {
+  const [opacity, setOpacity] = useState(0);
+  useEffect(() => {
+    let fade = setTimeout(() => setOpacity(1), 100);
+    let finish = setTimeout(onFinish, 2500); // show 2.5 sec intro
+    return () => {
+      clearTimeout(fade);
+      clearTimeout(finish);
+    };
+  }, [onFinish]);
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+      backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center",
+      color: "#FFF", fontSize: "2rem", opacity, transition: "opacity 2s"
+    }}>
+      ReUpSpots Loading...
+    </div>
+  );
+}
+
+// ---------- LOGO COMPONENT ----------
+function Logo({ theme }) {
+  return (
+    <svg width="160" height="50">
+      <text
+        x="0"
+        y="35"
+        fontSize="30"
+        fontWeight="bold"
+        fill={theme.primary}
+        fillOpacity="0.85"
+        style={{ transition: "all 0.5s ease" }}
+      >
+        ReUpSpots
+      </text>
+    </svg>
+  );
+}
+
+// ---------- FEED COMPONENT ----------
+function Feed({ theme, search, filterCategory, sortBy }) {
+  const [displayPosts, setDisplayPosts] = useState([]);
+
+  useEffect(() => {
+    let filtered = [...samplePosts];
+    if (filterCategory && filterCategory !== "All") filtered = filtered.filter((p) => p.category === filterCategory);
+    if (search) {
+      const lower = search.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.title.toLowerCase().includes(lower) ||
+          p.category.toLowerCase().includes(lower) ||
+          p.venue.toLowerCase().includes(lower)
+      );
+    }
+    if (sortBy === "Pay") filtered.sort((a, b) => b.pay - a.pay);
+    setDisplayPosts(filtered);
+  }, [search, filterCategory, sortBy]);
+
+  return (
+    <div className="p-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        {displayPosts.map((post, idx) => (
+          <div
+            key={idx}
+            className="p-4 rounded-lg shadow-lg transform hover:scale-105 transition"
+            style={{
+              backgroundColor: theme.bg,
+              color: theme.text,
+              border: `2px solid ${theme.secondary}`,
+            }}
+          >
+            <h2 className="text-xl font-bold mb-2">{post.title} {post.verified && "✅"}</h2>
+            <p className="font-semibold">Category: {post.category}</p>
+            <p>Pay: ${post.pay}</p>
+            {post.venue && <p>Venue: {post.venue}</p>}
+            {post.address && <p>Address: {post.address}</p>}
+            {post.date && <p>Date: {post.date}</p>}
+            <p>Recurring: {post.recurring ? "Yes" : "No"}</p>
+
+            <div className="flex flex-wrap gap-2 my-2">
+              {post.media.map((url, i) => (
+                <img key={i} src={url} alt="media" className="w-20 h-20 object-cover rounded" />
+              ))}
+            </div>
+
+            <PaymentButton amount={post.pay} description={post.title} onRelease={() => alert("Funds released to worker.")} />
+
+            <button
+              onClick={() => copyProfileLink(post.profileSlug)}
+              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Copy Profile Link
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- MAIN APP ----------
+export default function App() {
+  const [theme, setTheme] = useState(getRandomPalette());
+  const [page, setPage] = useState("feed");
+  const [showIntro, setShowIntro] = useState(!localStorage.getItem("introSeen"));
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [sortBy, setSortBy] = useState("Newest");
+
+  const toggleTheme = () => setTheme(getRandomPalette());
+
+  const handleIntroFinish = () => {
+    setShowIntro(false);
+    localStorage.setItem("introSeen", "true");
+  };
+
+  if (showIntro) return <Intro onFinish={handleIntroFinish} />;
+
+  return (
+    <div style={{ transition: "all 0.5s ease", backgroundColor: theme.bg, color: theme.text, minHeight: "100vh" }}>
+      <div className="flex flex-wrap justify-between items-center p-4">
+        <Logo theme={theme} />
+        <button onClick={toggleTheme} className="px-4 py-2 bg-primary text-white rounded hover:bg-secondary">
+          Switch Theme
+        </button>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-4 p-4">
+        <button onClick={() => setPage("feed")} className="px-4 py-2 bg-black text-white rounded">Feed</button>
+        <button onClick={() => setPage("profiles")} className="px-4 py-2 bg-black text-white rounded">Profiles</button>
+        <button onClick={() => setPage("rules")} className="px-4 py-2 bg-black text-white rounded">Rules</button>
+      </div>
+
+      {page === "feed" && (
+        <>
+          <div className="flex flex-wrap gap-2 justify-center mt-4 p-2">
+            <input
+              type="text"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-4 py-2 rounded border w-full md:w-1/3"
+            />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-4 py-2 rounded border"
+            >
+              {["All", ...new Set(samplePosts.map((p) => p.category))].map((cat, i) => <option key={i}>{cat}</option>)}
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-2 rounded border"
+            >
+              <option>Newest</option>
+              <option>Pay</option>
+            </select>
+          </div>
+          <Feed theme={theme} search={search} filterCategory={filterCategory} sortBy={sortBy} />
+        </>
+      )}
+
+      {page === "profiles" && (
+        <div className="grid gap-4 md:grid-cols-2 p-4">
+          {workers.map((worker, idx) => (
+            <div key={idx} className="p-4 rounded-lg shadow-lg transform hover:scale-105 transition" style={{ backgroundColor: theme.bg, color: theme.text, border: `2px solid ${theme.secondary}` }}>
+              <h2 className="text-xl font-bold mb-2">{worker.name} {worker.verified && "✅"}</h2>
+              <p className="font-semibold">Category: {worker.category}</p>
+              <div className="flex flex-wrap gap-2 my-2">
+                {worker.media.map((url, i) => <img key={i} src={url} alt="portfolio" className="w-20 h-20 object-cover rounded" />)}
+              </div>
+              <PaymentButton amount={50} description="Booking" onRelease={() => alert("Funds released to worker.")} />
+              <button onClick={() => copyProfileLink(worker.profileSlug)} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Copy Profile Link</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {page === "rules" && (
+        <div className="max-w-3xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg m-4">
+          <h1 className="text-2xl font-bold mb-4 text-center">Rules & Safety</h1>
+          <ul className="list-disc ml-6 space-y-2 text-gray-800 dark:text-gray-200">
+            <li>Transparency: All gigs clearly display pay, category, and venue.</li>
+            <li>Payments: Stripe Connect escrow with optional auto-release timers protects workers and hosts.</li>
+            <li>Professional Conduct: Respect time, venue, and agreements. Three strikes = permanent ban.</li>
+            <li>Recurring Jobs: Enabled for all eligible gigs.</li>
+            <li>Dispute & Reporting: Issues handled with admin intervention; funds held in escrow until resolution.</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

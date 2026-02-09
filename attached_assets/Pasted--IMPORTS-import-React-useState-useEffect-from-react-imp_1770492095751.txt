@@ -1,0 +1,157 @@
+// ---------- IMPORTS ----------
+import React, { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+
+// ---------- FIREBASE CONFIG ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyAfdAcU-BDP2cxcKLdIsy-qq1Yism8Gs6I",
+  authDomain: "foreverstagelink.firebaseapp.com",
+  projectId: "foreverstagelink",
+  storageBucket: "foreverstagelink.appspot.com",
+  messagingSenderId: "683355641197",
+  appId: "1:683355641197:web:a043bcffcda80162e23664",
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ---------- APP COMPONENT ----------
+function App() {
+  const [user, setUser] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [posts, setPosts] = useState([]);
+  const [newPost, setNewPost] = useState("");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [selectedRoom, setSelectedRoom] = useState("general"); // default group chat room
+
+  // ---------- AUTH STATE ----------
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ---------- FETCH POSTS ----------
+  useEffect(() => {
+    const postsQuery = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ---------- FETCH CHAT ----------
+  useEffect(() => {
+    const chatQuery = query(collection(db, "chat_" + selectedRoom), orderBy("timestamp"));
+    const unsubscribe = onSnapshot(chatQuery, (snapshot) => {
+      setChatMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [selectedRoom]);
+
+  // ---------- HANDLERS ----------
+  const handleSignUp = async () => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      setEmail("");
+      setPassword("");
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setEmail("");
+      setPassword("");
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+  };
+
+  const handleAddPost = async () => {
+    if (!newPost.trim()) return;
+    await addDoc(collection(db, "posts"), {
+      user: user.email,
+      content: newPost.trim(),
+      timestamp: serverTimestamp(),
+    });
+    setNewPost("");
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim()) return;
+    await addDoc(collection(db, "chat_" + selectedRoom), {
+      user: user.email,
+      message: chatInput.trim(),
+      timestamp: serverTimestamp(),
+    });
+    setChatInput("");
+  };
+
+  if (!user) {
+    return (
+      <div style={{ padding: "20px" }}>
+        <h2>Forever Stage Link</h2>
+        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
+        <button onClick={handleSignIn}>Sign In</button>
+        <button onClick={handleSignUp}>Sign Up</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h2>Welcome, {user.email}</h2>
+      <button onClick={handleSignOut}>Sign Out</button>
+
+      {/* POSTS */}
+      <div style={{ marginTop: "20px" }}>
+        <h3>Posts</h3>
+        <input type="text" placeholder="Write something..." value={newPost} onChange={e => setNewPost(e.target.value)} />
+        <button onClick={handleAddPost}>Post</button>
+        <div>
+          {posts.map(p => (
+            <div key={p.id} style={{ border: "1px solid #ccc", padding: "5px", marginTop: "5px" }}>
+              <strong>{p.user}</strong>: {p.content}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CHAT */}
+      <div style={{ marginTop: "20px" }}>
+        <h3>Chat Room: {selectedRoom}</h3>
+        <select onChange={e => setSelectedRoom(e.target.value)} value={selectedRoom}>
+          <option value="general">General</option>
+          <option value="vip">VIP</option>
+          <option value="private1">Private1</option>
+        </select>
+        <div style={{ border: "1px solid #ccc", height: "200px", overflowY: "scroll", marginTop: "5px", padding: "5px" }}>
+          {chatMessages.map(msg => (
+            <div key={msg.id}><strong>{msg.user}</strong>: {msg.message}</div>
+          ))}
+        </div>
+        <input type="text" placeholder="Type a message..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
+        <button onClick={handleSendChat}>Send</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- RENDER APP ----------
+ReactDOM.render(<App />, document.getElementById("root"));

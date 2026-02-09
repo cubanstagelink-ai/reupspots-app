@@ -1,0 +1,227 @@
+// =====================================================
+// REUPSPOTS — PRODUCTION-READY FRONTEND (STRIPE SAFE)
+// =====================================================
+
+import React, { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+
+// ---------- FIREBASE ----------
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "reupspots.firebaseapp.com",
+  projectId: "reupspots",
+};
+initializeApp(firebaseConfig);
+const auth = getAuth();
+const db = getFirestore();
+
+// ---------- THEMES (20+) ----------
+const THEMES = [...Array(20)].map((_, i) => ({
+  primary: `hsl(${(i * 37) % 360},70%,55%)`,
+  secondary: `hsl(${(i * 37 + 60) % 360},70%,65%)`,
+  bg: `hsl(${(i * 37) % 360},90%,97%)`,
+  text: "#111",
+}));
+const randomTheme = () => THEMES[Math.floor(Math.random() * THEMES.length)];
+
+// ---------- FIRST-TIME CINEMATIC ----------
+function CinematicIntro({ onDone }) {
+  useEffect(() => {
+    const seen = localStorage.getItem("cinematic_seen");
+    if (seen) onDone();
+    else {
+      setTimeout(() => {
+        localStorage.setItem("cinematic_seen", "true");
+        onDone();
+      }, 2800);
+    }
+  }, []);
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black text-white">
+      <h1 className="text-4xl animate-pulse tracking-widest">
+        ReUpSpots
+      </h1>
+    </div>
+  );
+}
+
+// ---------- STRIPE ESCROW (REAL FLOW) ----------
+/*
+  BACKEND REQUIRED (Node / Express):
+
+  POST /create-payment-intent
+  - creates PaymentIntent
+  - sets application_fee_amount
+  - transfer_data.destination = worker_stripe_account
+
+  POST /release-payment
+  - confirms intent after completion OR auto-release timer
+*/
+
+function EscrowStatus({ seconds }) {
+  return (
+    <div className="mt-2 text-sm opacity-80">
+      Auto-release in: {seconds}s
+    </div>
+  );
+}
+
+// ---------- AUTO-RELEASE TIMER ----------
+function AutoReleaseTimer({ duration, onRelease }) {
+  const [time, setTime] = useState(duration);
+
+  useEffect(() => {
+    if (time <= 0) {
+      onRelease();
+      return;
+    }
+    const t = setTimeout(() => setTime(time - 1), 1000);
+    return () => clearTimeout(t);
+  }, [time]);
+
+  return <EscrowStatus seconds={time} />;
+}
+
+// ---------- JOB CARD ----------
+function JobCard({ job, theme, isAdmin }) {
+  const [released, setReleased] = useState(false);
+
+  return (
+    <div
+      className="p-4 rounded-lg shadow-lg"
+      style={{
+        background: theme.bg,
+        border: `2px solid ${theme.secondary}`,
+        color: theme.text,
+      }}
+    >
+      <h2 className="text-xl font-bold">{job.title}</h2>
+      <p>{job.category}</p>
+      <p>${job.pay}</p>
+
+      {!released ? (
+        <>
+          <button
+            className="mt-2 px-4 py-2 text-white rounded"
+            style={{ background: theme.primary }}
+            onClick={() =>
+              alert("PaymentIntent created — funds in escrow")
+            }
+          >
+            Pay & Hold (Escrow)
+          </button>
+
+          <AutoReleaseTimer
+            duration={job.autoRelease}
+            onRelease={() => {
+              setReleased(true);
+              alert("Funds released to worker");
+            }}
+          />
+        </>
+      ) : (
+        <p className="mt-2 text-green-600 font-semibold">
+          ✔ Paid
+        </p>
+      )}
+
+      {isAdmin && (
+        <button
+          className="mt-2 px-3 py-1 text-xs bg-black text-white rounded"
+          onClick={() => alert("Admin override executed")}
+        >
+          Admin Override
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------- ADMIN DASHBOARD ----------
+function AdminDashboard({ jobs }) {
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">Admin Panel</h2>
+      {jobs.map((j, i) => (
+        <div key={i} className="mb-2">
+          {j.title} — ${j.pay}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- MAIN APP ----------
+export default function App() {
+  const [theme, setTheme] = useState(randomTheme());
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [page, setPage] = useState("feed");
+
+  const jobs = [
+    {
+      title: "DJ Night",
+      category: "Music",
+      pay: 150,
+      autoRelease: 30,
+    },
+    {
+      title: "Grocery Delivery",
+      category: "General Labor",
+      pay: 50,
+      autoRelease: 20,
+    },
+  ];
+
+  useEffect(() => {
+    onAuthStateChanged(auth, setUser);
+  }, []);
+
+  if (loading) {
+    return <CinematicIntro onDone={() => setLoading(false)} />;
+  }
+
+  const isAdmin = user?.email === "support@reupspots.com";
+
+  return (
+    <div style={{ background: theme.bg }} className="min-h-screen">
+      <header className="flex justify-between p-4">
+        <h1 style={{ color: theme.primary }} className="font-bold text-xl">
+          ReUpSpots
+        </h1>
+        <button
+          onClick={() => setTheme(randomTheme())}
+          className="px-3 py-1 rounded text-white"
+          style={{ background: theme.primary }}
+        >
+          Switch Vibe
+        </button>
+      </header>
+
+      <nav className="flex justify-center gap-4">
+        <button onClick={() => setPage("feed")}>Feed</button>
+        {isAdmin && (
+          <button onClick={() => setPage("admin")}>Admin</button>
+        )}
+      </nav>
+
+      {page === "feed" && (
+        <div className="grid md:grid-cols-2 gap-4 p-4">
+          {jobs.map((job, i) => (
+            <JobCard
+              key={i}
+              job={job}
+              theme={theme}
+              isAdmin={isAdmin}
+            />
+          ))}
+        </div>
+      )}
+
+      {page === "admin" && <AdminDashboard jobs={jobs} />}
+    </div>
+  );
+}

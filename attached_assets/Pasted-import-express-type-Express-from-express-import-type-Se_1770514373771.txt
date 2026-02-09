@@ -1,0 +1,171 @@
+import express, { type Express } from "express";
+import type { Server } from "http";
+
+/**
+ * Replit / Express routes
+ * Make sure you set these Secrets in Replit:
+ * - DAILY_API_KEY
+ * - STRIPE_SECRET_KEY
+ * - APP_URL (optional, like https://reupspots.com or your Replit dev URL)
+ */
+
+export async function registerRoutes(
+  httpServer: Server,
+  app: Express
+): Promise<Server> {
+  // If your app already has app.use(express.json()) elsewhere, this is still fine.
+  // If you DO NOT have it elsewhere, keep it here.
+  app.use(express.json());
+
+  // ---- Health check (fixes 404 + lets you test quickly) ----
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ ok: true, message: "Reupspots backend running ✅" });
+  });
+
+  // ---- DAILY: Create a room ----
+  // Call this from your frontend when you want a new call link.
+  // Returns { url, name, id, ... }
+  app.post("/api/daily/create-room", async (req, res) => {
+    try {
+      const DAILY_API_KEY = process.env.DAILY_API_KEY;
+      if (!DAILY_API_KEY) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "Missing DAILY_API_KEY in Replit Secrets" });
+      }
+
+      // Optional inputs you can send from frontend:
+      // { roomName?: string, expMinutes?: number }
+      const { roomName, expMinutes } = req.body ?? {};
+
+      const body = {
+        name: roomName || undefined, // Daily will auto-generate if undefined
+        properties: {
+          // make “join call” optional — not required for posting/booking
+          enable_chat: true,
+          enable_screenshare: true,
+          // If you want rooms to expire (recommended), set e.g. 60 minutes:
+          exp: expMinutes ? Math.floor(Date.now() / 1000) + expMinutes * 60 : undefined,
+        },
+      };
+
+      // Clean undefined fields so Daily doesn’t complain
+      const cleanBody = JSON.parse(JSON.stringify(body));
+
+      const r = await fetch("https://api.daily.co/v1/rooms", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${DAILY_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(cleanBody),
+      });
+
+      const data = await r.json();
+
+      if (!r.ok) {
+        return res.status(r.status).json({
+          ok: false,
+          error: "Daily API error",
+          details: data,
+        });
+      }
+
+      return res.status(200).json({ ok: true, room: data });
+    } catch (err: any) {
+      return res.status(500).json({
+        ok: false,
+        error: "Server error creating Daily room",
+        details: err?.message ?? String(err),
+      });
+    }
+  });
+
+  // ---- STRIPE: Create Checkout Session ----
+  // This gives you a Stripe-hosted checkout URL to send the user to.
+  app.post("/api/stripe/create-checkout-session", async (req, res) => {
+    try {
+      const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+      if (!STRIPE_SECRET_KEY) {
+        return res.status(500).json({
+          ok: false,
+          error: "Missing STRIPE_SECRET_KEY in Replit Secrets",
+        });
+      }
+
+      // Lazy import so it doesn’t crash if Stripe isn’t installed yet
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(STRIPE_SECRET_KEY, {
+        apiVersion: "2024-06-20",
+      });
+
+      // You can pass:
+      // { amount: 2500, currency: "usd", title: "Post Boost", successUrl?, cancelUrl? }
+      const {
+        amount = 500, // default $5.00
+        currency = "usd",
+        title = "Reupspots Payment",
+        successUrl,
+        cancelUrl,
+      } = req.body ?? {};
+
+      const APP_URL =
+        process.env.APP_URL ||
+        "https://example.com"; // change later after domain is connected
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency,
+              product_data: { name: title },
+              unit_amount: Number(amount),
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: successUrl || `${APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl || `${APP_URL}/cancel`,
+      });
+
+      return res.status(200).json({ ok: true, url: session.url, sessionId: session.id });
+    } catch (err: any) {
+      return res.status(500).json({
+        ok: false,
+        error: "Stripe checkout error",
+        details: err?.message ?? String(err),
+      });
+    }
+  });
+
+  // ---- OPTIONAL: Stripe Webhook (leave OFF until you’re ready) ----
+  // If you need webhooks later, you must use express.raw on that route
+  // and you need STRIPE_WEBHOOK_SECRET in Secrets.
+  /*
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    try {
+      const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+      const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET) {
+        return res.status(500).send("Missing Stripe webhook secrets");
+      }
+
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
+
+      const sig = req.headers["stripe-signature"] as string;
+      const event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+
+      // handle events here:
+      // if (event.type === "checkout.session.completed") { ... }
+
+      res.status(200).json({ received: true });
+    } catch (err: any) {
+      res.status(400).send(`Webhook Error: ${err?.message ?? String(err)}`);
+    }
+  });
+  */
+
+  return httpServer;
+}

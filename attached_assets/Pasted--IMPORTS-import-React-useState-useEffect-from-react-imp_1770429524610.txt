@@ -1,0 +1,229 @@
+// ---------- IMPORTS ----------
+import React, { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+// ---------- FIREBASE CONFIG ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyAfdAcU-BDP2cxcKLdIsy-qq1Yism8Gs6I",
+  authDomain: "foreverstagelink.firebaseapp.com",
+  projectId: "foreverstagelink",
+  storageBucket: "foreverstagelink.firebasestorage.app",
+  messagingSenderId: "683355641197",
+  appId: "1:683355641197:web:a043bcffcda80162e23664",
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ---------- ADMIN EMAILS ----------
+const adminEmails = ["cubanstagelink@gmail.com"];
+
+// ---------- TIERED OPPORTUNITIES ----------
+const opportunityTiers = [
+  { name: "Slots", duration: "15–60 min", baseRate: 0.5, platformFee: 0.25 },
+  { name: "Missions", duration: "1–4 hrs", baseRate: 1, platformFee: 0.5 },
+  { name: "Tasks", duration: "Half-day", baseRate: 2, platformFee: 1 },
+  { name: "Projects", duration: "1–7 days", baseRate: 5, platformFee: 2 },
+  { name: "Chances", duration: "Flexible / high-impact", baseRate: 5, platformFee: 2.5 },
+];
+
+// ---------- VISIBILITY BOOST OPTIONS ----------
+const boostOptions = [
+  { name: "None", fee: 0 },
+  { name: "Small Boost", fee: 1 },
+  { name: "Medium Boost", fee: 3 },
+  { name: "High Boost", fee: 5 },
+];
+
+// ---------- SAMPLE DATA ----------
+const samplePosts = [
+  { title: "Live DJ Performance", category: "Music", tier: "Projects", pay: 150, venue: "The Underground Club", address: "123 Main St, Chicago, IL", date: "2026-02-07", promoter: "DJ Alex", verified: true, media: ["https://via.placeholder.com/150"], profileSlug: "dj-alex" },
+  { title: "Ballet Workshop", category: "Dance", tier: "Missions", pay: 50, venue: "Naperville Dance Studio", address: "456 Park Ave, Naperville, IL", date: "2026-02-08", promoter: "Miss Lisa", verified: true, media: ["https://via.placeholder.com/150","https://via.placeholder.com/150"], profileSlug: "miss-lisa" },
+  { title: "Stand-Up Comedy Night", category: "Comedy", tier: "Tasks", pay: 75, venue: "Laugh Lounge", address: "789 Joke St, Chicago, IL", date: "2026-02-09", promoter: "Funny Mike", verified: true, media: ["https://via.placeholder.com/150"], profileSlug: "funny-mike" },
+];
+
+// ---------- WORKERS ----------
+const workers = [
+  { name: "John Doe", category: "Musician", verified: true, media: ["https://via.placeholder.com/150","https://via.placeholder.com/150"], profileSlug: "john-doe", tier: "Projects", baseRate: 150 },
+  { name: "Jane Smith", category: "Dancer", verified: true, media: ["https://via.placeholder.com/150"], profileSlug: "jane-smith", tier: "Missions", baseRate: 50 },
+  { name: "Funny Mike", category: "Comedian", verified: true, media: ["https://via.placeholder.com/150"], profileSlug: "funny-mike", tier: "Tasks", baseRate: 75 },
+];
+
+// ---------- UTILITY FUNCTIONS ----------
+const randomColor = () => {
+  const hues = [300, 340, 180, 0, 0]; 
+  const hue = hues[Math.floor(Math.random() * hues.length)];
+  return `hsl(${hue}, 70%, 90%)`;
+};
+
+const copyProfileLink = (slug) => {
+  const profileURL = `${window.location.origin}/profile/${slug}`;
+  navigator.clipboard.writeText(profileURL);
+  alert("Profile link copied!");
+};
+
+// ---------- PLATFORM FEE CALC + BOOST ----------
+const calculateTotalPay = (baseRate, tierName, boostName="None") => {
+  const tier = opportunityTiers.find(t => t.name === tierName);
+  const boost = boostOptions.find(b => b.name === boostName);
+  if (!tier || !boost) return baseRate;
+  return baseRate + tier.platformFee + boost.fee;
+};
+
+// ---------- FEED COMPONENT ----------
+function Feed({ userColor, search, filterCategory, sortBy }) {
+  const [colors, setColors] = useState([]);
+  const [displayPosts, setDisplayPosts] = useState([]);
+  const [postBoosts, setPostBoosts] = useState({});
+
+  useEffect(() => {
+    setColors(samplePosts.map(() => (userColor ? userColor : randomColor())));
+    setDisplayPosts(samplePosts);
+  }, [userColor]);
+
+  useEffect(() => {
+    let filtered = [...samplePosts];
+    if (filterCategory && filterCategory !== "All") filtered = filtered.filter((post) => post.category === filterCategory);
+    if (search) {
+      const lower = search.toLowerCase();
+      filtered = filtered.filter((post) =>
+        post.title.toLowerCase().includes(lower) ||
+        post.category.toLowerCase().includes(lower) ||
+        post.venue.toLowerCase().includes(lower) ||
+        post.promoter.toLowerCase().includes(lower) ||
+        post.address.toLowerCase().includes(lower)
+      );
+    }
+    if (sortBy === "Pay") filtered.sort((a, b) => calculateTotalPay(b.pay, b.tier, postBoosts[b.profileSlug] || "None") - calculateTotalPay(a.pay, a.tier, postBoosts[a.profileSlug] || "None"));
+    setDisplayPosts(filtered);
+  }, [search, filterCategory, sortBy, postBoosts]);
+
+  const handleBoostChange = (slug, boostName) => {
+    setPostBoosts(prev => ({ ...prev, [slug]: boostName }));
+  };
+
+  const categories = ["All", ...new Set(samplePosts.map((p) => p.category))];
+
+  return (
+    <div className="p-4">
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input type="text" placeholder="Search..." value={search} readOnly className="px-4 py-2 rounded border w-full md:w-1/3"/>
+        <select value={filterCategory} readOnly className="px-4 py-2 rounded border">{categories.map((cat,i)=><option key={i}>{cat}</option>)}</select>
+        <select value={sortBy} readOnly className="px-4 py-2 rounded border"><option>Newest</option><option>Pay</option></select>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {displayPosts.map((post,index)=>(
+          <div key={index} className="p-4 rounded-lg shadow-lg transform hover:scale-105 transition" style={{backgroundColor:colors[index], boxShadow: postBoosts[post.profileSlug] && postBoosts[post.profileSlug] !== "None" ? "0 0 20px gold" : ""}}>
+            <h2 className="text-xl font-bold mb-2">{post.title} {post.verified && "✅"}</h2>
+            <p className="font-semibold">Category: {post.category} ({post.tier})</p>
+            <p>Base Pay: ${post.pay}</p>
+            <p>Platform Fee: ${opportunityTiers.find(t=>t.name===post.tier)?.platformFee||0}</p>
+            <p>Boost Fee: ${boostOptions.find(b=>b.name===postBoosts[post.profileSlug]||"None")?.fee||0}</p>
+            <p>Total: ${calculateTotalPay(post.pay, post.tier, postBoosts[post.profileSlug]||"None")}</p>
+            {post.venue && <p>Venue: {post.venue}</p>}
+            {post.address && <p>Address: {post.address}</p>}
+            {post.date && <p>Date: {post.date}</p>}
+            {post.promoter && <p>Promoter: {post.promoter}</p>}
+            <div className="flex flex-wrap gap-2 my-2">{post.media.map((url,i)=><img key={i} src={url} alt="media" className="w-20 h-20 object-cover rounded"/>)}</div>
+
+            <label className="block mt-2">Boost Visibility:</label>
+            <select value={postBoosts[post.profileSlug]||"None"} onChange={(e)=>handleBoostChange(post.profileSlug,e.target.value)} className="px-2 py-1 rounded border">
+              {boostOptions.map((b,i)=><option key={i} value={b.name}>{b.name} (+${b.fee})</option>)}
+            </select>
+
+            <a href={`https://cash.app/$StageLink/${calculateTotalPay(post.pay, post.tier, postBoosts[post.profileSlug]||"None")}`} target="_blank" className="inline-block mt-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800">Pay & Book</a>
+            <button onClick={()=>copyProfileLink(post.profileSlug)} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Copy Profile Link</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- PROFILES COMPONENT ----------
+function Profiles({ userColor }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 p-4">
+      {workers.map((worker,index)=>(
+        <div key={index} className="p-4 rounded-lg shadow-lg transform hover:scale-105 transition" style={{backgroundColor:userColor?userColor:"#fff"}}>
+          <h2 className="text-xl font-bold mb-2">{worker.name} {worker.verified && "✅"}</h2>
+          <p className="font-semibold">Category: {worker.category} ({worker.tier})</p>
+          <p>Base Pay: ${worker.baseRate}</p>
+          <p>Platform Fee: ${opportunityTiers.find(t=>t.name===worker.tier)?.platformFee||0}</p>
+          <p>Total: ${calculateTotalPay(worker.baseRate, worker.tier)}</p>
+          <div className="flex flex-wrap gap-2 my-2">{worker.media.map((url,i)=><img key={i} src={url} alt="portfolio" className="w-20 h-20 object-cover rounded"/>)}</div>
+          <a href={`https://cash.app/$StageLink/${calculateTotalPay(worker.baseRate, worker.tier)}`} target="_blank" className="inline-block mt-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800">Pay & Book</a>
+          <button onClick={()=>copyProfileLink(worker.profileSlug)} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Copy Profile Link</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- RULES COMPONENT ----------
+function Rules() {
+  return (
+    <div className="max-w-3xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg m-4">
+      <h1 className="text-2xl font-bold mb-4 text-center">Rules & Safety</h1>
+      <ul className="list-disc ml-6 space-y-2 text-gray-800 dark:text-gray-200">
+        <li>Verification: Certain categories require manual verification for launch.</li>
+        <li>Payments: All payments are handled via secure external links. Platform fees and boosts are included automatically.</li>
+        <li>Reporting: If a post does not match expectations, contact us immediately.</li>
+        <li>Underage Users: Parent/guardian authorization required for minors.</li>
+        <li>Abuse / Scams: Zero tolerance. Posts/accounts removed immediately.</li>
+        <li>Events & Venues: All event information is listed. Promoter/organizer details are included.</li>
+      </ul>
+    </div>
+  );
+}
+
+// ---------- MAIN APP ----------
+export default function App() {
+  const [page,setPage] = useState("feed");
+  const [userColor,setUserColor] = useState(null);
+  const [darkMode,setDarkMode] = useState(false);
+  const [search,setSearch] = useState("");
+  const [filterCategory,setFilterCategory] = useState("All");
+  const [sortBy,setSortBy] = useState("Newest");
+
+  useEffect(()=>{
+    const savedColor = localStorage.getItem("themeColor");
+    if(savedColor)setUserColor(savedColor);
+    const savedDark = localStorage.getItem("darkMode");
+    if(savedDark==="true")setDarkMode(true);
+  },[]);
+
+  const handleColorChange=(color)=>{setUserColor(color); localStorage.setItem("themeColor",color);}
+  const toggleDarkMode=()=>{setDarkMode(!darkMode); localStorage.setItem("darkMode",!darkMode);}
+
+  return (
+    <div className={darkMode?"dark":""}>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-wrap justify-center gap-4 p-4 bg-gray-100 dark:bg-gray-800">
+          <button onClick={()=>setPage("feed")} className="px-4 py-2 bg-black text-white rounded">Feed</button>
+          <button onClick={()=>setPage("profiles")} className="px-4 py-2 bg-black text-white rounded">Profiles</button>
+          <button onClick={()=>setPage("rules")} className="px-4 py-2 bg-black text-white rounded">Rules</button>
+          <button onClick={toggleDarkMode} className="px-4 py-2 bg-gray-700 text-white rounded">Toggle Dark</button>
+          <input type="color" onChange={(e)=>handleColorChange(e.target.value)} className="w-10 h-10 rounded border-none cursor-pointer"/>
+        </div>
+
+        {page==="feed" && (
+          <div className="flex flex-wrap gap-2 justify-center mt-4 p-2">
+            <input type="text" placeholder="Search..." value={search} onChange={(e)=>setSearch(e.target.value)} className="px-4 py-2 rounded border w-full md:w-1/3"/>
+            <select value={filterCategory} onChange={(e)=>setFilterCategory(e.target.value)} className="px-4 py-2 rounded border">
+              {["All", ...new Set(samplePosts.map((p)=>p.category))].map((cat,i)=><option key={i}>{cat}</option>)}
+            </select>
+            <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="px-4 py-2 rounded border"><option>Newest</option><option>Pay</option></select>
+          </div>
+        )}
+
+        {page==="feed" && <Feed userColor={userColor} search={search} filterCategory={filterCategory} sortBy={sortBy}/>}
+        {page==="profiles" && <Profiles userColor={userColor}/>}
+        {page==="rules" && <Rules/>}
+      </div>
+    </div>
+  );
+}

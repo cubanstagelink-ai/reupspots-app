@@ -1,0 +1,198 @@
+You are a senior full-stack engineer working inside an existing Replit project called STAGELINK.
+
+CRITICAL NON-NEGOTIABLE RULES:
+- DO NOT change UI layout, Tailwind classes, colors, spacing, fonts, animations, or theme
+- DO NOT redesign components
+- DO NOT remove pages or routes
+- The site must look IDENTICAL after the update
+- ONLY add backend logic, guards, schemas, and minimal UI text where required
+
+You must READ the existing codebase first, then UPDATE / REPLACE files as specified.
+
+================================================
+GOAL
+================================================
+Turn StageLink from a listing directory into a PROFIT-LOCKED marketplace while preserving its “0% commission” positioning.
+
+Revenue must come from:
+- Credits
+- Boosted visibility
+- Verification
+- Subscriptions
+- Booking control
+
+================================================
+FILE 1: App.jsx (UPDATE, PRESERVE THEME)
+================================================
+
+1) BOOKING GATE (MANDATORY)
+- Remove any direct “Pay & Book” or exposed payment links
+- Replace with “Request Booking” button
+- On click:
+  - Create Firestore document in `bookings`
+  - status = "pending_payment"
+- ONLY after booking exists → reveal Cash App payment link
+
+Booking schema:
+{
+  postId,
+  workerSlug,
+  buyerUid,
+  tier,
+  basePay,
+  platformFee,
+  boost,
+  boostFee,
+  totalAmount,
+  status: "pending_payment" | "payment_submitted" | "confirmed" | "cancelled",
+  createdAt
+}
+
+2) PAYMENT CONFIRMATION
+- User clicks “Mark as Paid” → status = "payment_submitted"
+- Admin can confirm → status = "confirmed"
+
+Admin emails:
+["cubanstagelink@gmail.com"]
+
+Non-admins CANNOT confirm bookings.
+
+================================================
+FILE 2: src/lib/pricing.js (NEW)
+================================================
+
+Create centralized pricing authority:
+
+export const TIER_FEES = {
+  Slots: 0.25,
+  Missions: 0.5,
+  Tasks: 1,
+  Projects: 2,
+  Chances: 2.5
+};
+
+export const BOOST_FEES = {
+  None: { fee: 0, hours: 0 },
+  "24h Boost": { fee: 3, hours: 24 },
+  "72h Boost": { fee: 7, hours: 72 },
+  "7 Day Featured": { fee: 15, hours: 168 }
+};
+
+export function calculateTotal({ basePay, tier, boost }) {
+  return basePay + TIER_FEES[tier] + BOOST_FEES[boost].fee;
+}
+
+Client may DISPLAY totals but must NOT override this logic.
+
+================================================
+FILE 3: src/lib/credits.js (NEW)
+================================================
+
+Implement credit system:
+
+Schema:
+{
+  userId,
+  balance,
+  updatedAt
+}
+
+Rules:
+- New users start with 3 credits
+- Credits required for:
+  - Creating a post
+  - Applying to a post
+  - Boosting visibility
+  - Verification
+
+Costs:
+Slots = 1
+Missions = 2
+Tasks = 3
+Projects = 4
+Chances = 5
+Boost Small = 2
+Boost Medium = 4
+Boost High = 8
+Verification = 10
+
+Elite users bypass credit checks.
+
+================================================
+FILE 4: src/lib/subscriptions.js (NEW)
+================================================
+
+Add plan logic (no Stripe UI yet):
+
+Plans:
+FREE:
+- 3 total credits
+- No boosts
+
+PRO:
+- 30 credits / month
+- Boosts enabled
+- Verification included
+
+ELITE:
+- Unlimited posts
+- Unlimited boosts
+- Auto-verified
+- Priority sorting
+
+Add `plan` field to user profile:
+"free" | "pro" | "elite"
+
+================================================
+FILE 5: BOOST SYSTEM (UPDATE)
+================================================
+
+Replace boosts with:
+- None ($0)
+- 24h Boost ($3)
+- 72h Boost ($7)
+- 7-Day Featured ($15)
+
+Boosts must:
+- Affect feed sorting
+- Float boosted posts to top
+- Add visual emphasis (existing glow allowed)
+- Be included in booking total
+- Cost credits or subscription entitlement
+
+================================================
+FILE 6: FEED SORTING LOGIC (UPDATE)
+================================================
+
+Sort order:
+1) Active boosted posts
+2) Verified promoters
+3) Highest tier
+4) Newest
+
+================================================
+SECURITY + PROFIT GUARANTEES
+================================================
+
+- Platform fees must be non-bypassable
+- Payment info cannot be revealed without booking
+- All monetized actions logged in Firestore
+- Centralized logic ready for Cloud Functions later
+- Preserve “0% commission” branding (no % cuts)
+
+================================================
+OUTPUT REQUIREMENTS
+================================================
+
+- Return UPDATED App.jsx
+- Return NEW helper files (pricing.js, credits.js, subscriptions.js)
+- Code must be runnable
+- No pseudocode
+- No UI redesign
+- Theme preserved 100%
+
+FINAL OBJECTIVE:
+StageLink must be able to scale users WITHOUT losing money, using:
+credits + boosts + verification + subscriptions + booking control.
+
+Return the updated files ready to deploy.

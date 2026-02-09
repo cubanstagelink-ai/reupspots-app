@@ -1,0 +1,119 @@
+PROJECT NAME: ReUpSpots
+DOMAIN: reupspots.com
+
+GOAL:
+Upgrade the existing ReUpSpots web app to include Stripe-based in-app payments with automatic platform fees, while keeping all existing features, UI, rules, and content unchanged.
+
+IMPORTANT CONSTRAINTS:
+- Do NOT remove or downgrade any existing functionality
+- Do NOT introduce escrow, manual approvals, or delayed payouts
+- Do NOT expose any personal payment handles (Cash App, Venmo, etc.)
+- Platform revenue must be automatic, transparent, and Stripe-compliant
+- App must be production-ready and professional
+
+--------------------------------
+PAYMENT & REVENUE MODEL (OPTION B)
+--------------------------------
+
+Use Stripe Checkout + Stripe Connect (Express Accounts).
+
+PAYMENT FLOW:
+1. Promoter posts a job (Slot, Mission, Task, Project, Chance).
+2. Promoter selects “Pay In-App (Recommended)” at checkout.
+3. Worker connects or already has a Stripe Express account.
+4. Promoter pays via Stripe Checkout.
+5. Stripe automatically:
+   - Deducts ReUpSpots platform fee
+   - Sends remainder directly to worker
+6. ReUpSpots receives platform fee instantly in its Stripe balance.
+
+NO off-platform payments required.
+NO manual payouts.
+NO holding funds.
+
+--------------------------------
+PLATFORM FEE LOGIC
+--------------------------------
+
+Implement a configurable platform fee:
+
+DEFAULT:
+- Flat percentage fee: 6%
+
+Fee is:
+- Clearly disclosed at checkout as “ReUpSpots platform fee”
+- Automatically deducted via Stripe Destination Charges
+
+Example:
+Job price: $100
+Platform fee (6%): $6
+Worker receives: $94
+ReUpSpots receives: $6
+
+--------------------------------
+STRIPE IMPLEMENTATION DETAILS
+--------------------------------
+
+- Use Stripe Connect Express accounts for workers
+- Use Stripe Checkout Sessions
+- Use destination charges with application_fee_amount
+- Platform Stripe account is the primary account
+- Workers must complete Stripe onboarding to receive payouts
+- Stripe handles identity verification and payout compliance
+
+--------------------------------
+USER INTERFACE REQUIREMENTS
+--------------------------------
+
+Checkout Page:
+- Default payment option: “Pay securely with ReUpSpots”
+- Secondary option (optional, not promoted): “Arrange payment independently”
+
+Worker Dashboard:
+- “Connect Stripe to get paid” CTA
+- Stripe connection status indicator
+- Earnings summary (gross, fees deducted, net)
+
+Promoter Dashboard:
+- Clear price breakdown before payment
+- Confirmation that worker is Stripe-verified (if applicable)
+
+--------------------------------
+LEGAL / TERMS UPDATES (KEEP EXISTING, ADD ONLY)
+--------------------------------
+
+Add the following language WITHOUT removing existing rules:
+
+PAYMENTS:
+“ReUpSpots facilitates payments through Stripe. When in-app payments are used, a clearly disclosed platform fee is applied. ReUpSpots is not an employer and is not a party to the agreement between users.”
+
+LIABILITY:
+“ReUpSpots does not guarantee performance, payment outside the platform, or outcomes of any engagement.”
+
+--------------------------------
+EMAIL & BRANDING
+--------------------------------
+
+Replace all prior brand references with:
+- ReUpSpots
+- reupspots.com
+
+Use professional emails in UI and policies:
+- support@reupspots.com
+- legal@reupspots.com
+
+(Emails may forward to an external inbox; do not expose forwarding address.)
+
+--------------------------------
+DEPLOYMENT
+--------------------------------
+
+- Must work on Replit hosting
+- Must support custom domain
+- Production-ready build
+- No demo or placeholder payment logic
+
+END GOAL:
+A live ReUpSpots platform where users can immediately transact,
+workers get paid fast,
+and ReUpSpots earns revenue automatically on every in-app payment.
