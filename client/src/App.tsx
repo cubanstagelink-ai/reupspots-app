@@ -1,30 +1,32 @@
 import { useState, useCallback } from "react";
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { Layout } from "@/components/Layout";
-import { CinematicIntro } from "@/components/CinematicIntro";
-import { useThemeShift } from "@/hooks/use-theme-shift";
-import NotFound from "@/pages/not-found";
+import { queryClient } from "./lib/queryClient";
 
-import Feed from "@/pages/Feed";
-import Profiles from "@/pages/Profiles";
-import ProfileDetail from "@/pages/ProfileDetail";
-import MyProfile from "@/pages/MyProfile";
-import Rules from "@/pages/Rules";
-import Terms from "@/pages/Terms";
-import Privacy from "@/pages/Privacy";
-import Verification from "@/pages/Verification";
-import Messages from "@/pages/Messages";
-import BuyCredits from "@/pages/BuyCredits";
-import ProfessionalVerification from "@/pages/ProfessionalVerification";
-import Feedback from "@/pages/Feedback";
-import OpportunityDetail from "@/pages/OpportunityDetail";
-import PosterProfile from "@/pages/PosterProfile";
-import Posters from "@/pages/Posters";
-import AdminDashboard from "@/pages/AdminDashboard";
+import { Toaster } from "./components/ui/toaster";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { Layout } from "./components/Layout";
+import { CinematicIntro } from "./components/CinematicIntro";
+import { useThemeShift } from "./hooks/use-theme-shift";
+
+import NotFound from "./pages/not-found";
+
+import Feed from "./pages/Feed";
+import Profiles from "./pages/Profiles";
+import ProfileDetail from "./pages/ProfileDetail";
+import MyProfile from "./pages/MyProfile";
+import Rules from "./pages/Rules";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Verification from "./pages/Verification";
+import Messages from "./pages/Messages";
+import BuyCredits from "./pages/BuyCredits";
+import ProfessionalVerification from "./pages/ProfessionalVerification";
+import Feedback from "./pages/Feedback";
+import OpportunityDetail from "./pages/OpportunityDetail";
+import PosterProfile from "./pages/PosterProfile";
+import Posters from "./pages/Posters";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function Router() {
   useThemeShift();
@@ -40,7 +42,10 @@ function Router() {
         <Route path="/terms" component={Terms} />
         <Route path="/privacy" component={Privacy} />
         <Route path="/verification" component={Verification} />
-        <Route path="/professional-verification" component={ProfessionalVerification} />
+        <Route
+          path="/professional-verification"
+          component={ProfessionalVerification}
+        />
         <Route path="/messages" component={Messages} />
         <Route path="/buy-credits" component={BuyCredits} />
         <Route path="/feedback" component={Feedback} />
@@ -54,7 +59,7 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   const [introComplete, setIntroComplete] = useState(false);
   const handleIntroDone = useCallback(() => setIntroComplete(true), []);
 
@@ -72,5 +77,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;
